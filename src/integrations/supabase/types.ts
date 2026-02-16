@@ -38,6 +38,41 @@ export type Database = {
         }
         Relationships: []
       }
+      announcements: {
+        Row: {
+          content: string
+          course_id: string | null
+          created_at: string
+          educator_id: string
+          id: string
+          title: string
+        }
+        Insert: {
+          content: string
+          course_id?: string | null
+          created_at?: string
+          educator_id: string
+          id?: string
+          title: string
+        }
+        Update: {
+          content?: string
+          course_id?: string | null
+          created_at?: string
+          educator_id?: string
+          id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assignments: {
         Row: {
           assignment_type: string
@@ -184,6 +219,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      doubts: {
+        Row: {
+          ai_response: string | null
+          course_id: string | null
+          created_at: string
+          expert_response: string | null
+          id: string
+          question: string
+          resolved_at: string | null
+          responded_by: string | null
+          status: string
+          student_id: string
+        }
+        Insert: {
+          ai_response?: string | null
+          course_id?: string | null
+          created_at?: string
+          expert_response?: string | null
+          id?: string
+          question: string
+          resolved_at?: string | null
+          responded_by?: string | null
+          status?: string
+          student_id: string
+        }
+        Update: {
+          ai_response?: string | null
+          course_id?: string | null
+          created_at?: string
+          expert_response?: string | null
+          id?: string
+          question?: string
+          resolved_at?: string | null
+          responded_by?: string | null
+          status?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "doubts_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       enrollments: {
         Row: {
@@ -350,6 +432,42 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      resources: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          educator_id: string
+          file_url: string | null
+          id: string
+          link: string | null
+          resource_type: string
+          title: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          educator_id: string
+          file_url?: string | null
+          id?: string
+          link?: string | null
+          resource_type?: string
+          title: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          educator_id?: string
+          file_url?: string | null
+          id?: string
+          link?: string | null
+          resource_type?: string
+          title?: string
         }
         Relationships: []
       }

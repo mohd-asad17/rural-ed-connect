@@ -2,12 +2,17 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BookOpen, Search } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function Courses() {
   const { user, role } = useAuth();
   const [courses, setCourses] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -15,13 +20,23 @@ export default function Courses() {
         const { data } = await supabase.from("courses").select("*").eq("educator_id", user!.id).order("created_at", { ascending: false });
         setCourses(data || []);
       } else {
-        // Students: show all courses (they can browse and enroll)
         const { data } = await supabase.from("courses").select("*").order("created_at", { ascending: false });
         setCourses(data || []);
       }
     };
     if (user) load();
   }, [user, role]);
+
+  useEffect(() => {
+    const cats = [...new Set(courses.map(c => c.category).filter(Boolean))];
+    setCategories(cats);
+  }, [courses]);
+
+  const filtered = courses.filter(c => {
+    const matchesSearch = !searchQuery || c.title.toLowerCase().includes(searchQuery.toLowerCase()) || c.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCat = categoryFilter === "all" || c.category === categoryFilter;
+    return matchesSearch && matchesCat;
+  });
 
   return (
     <div className="space-y-6">
@@ -34,11 +49,28 @@ export default function Courses() {
         )}
       </div>
 
-      {courses.length === 0 ? (
+      {/* Search & Filter */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search courses..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-10" />
+        </div>
+        {categories.length > 0 && (
+          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Categories</SelectItem>
+              {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">No courses found.</CardContent></Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {courses.map(course => (
+          {filtered.map(course => (
             <Link key={course.id} to={`/courses/${course.id}`}>
               <Card className="hover:shadow-md transition-shadow h-full">
                 <CardHeader className="pb-3">
