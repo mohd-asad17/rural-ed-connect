@@ -3,9 +3,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, FileText, Video, Calendar, Flame } from "lucide-react";
+import { BookOpen, FileText, Video, Flame, Megaphone, HelpCircle, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
-import { format, subDays, isSameDay, parseISO } from "date-fns";
+import { format, subDays, parseISO } from "date-fns";
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -14,11 +14,12 @@ export default function StudentDashboard() {
   const [pendingAssignments, setPendingAssignments] = useState<any[]>([]);
   const [activityDates, setActivityDates] = useState<string[]>([]);
   const [streak, setStreak] = useState(0);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [courseProgress, setCourseProgress] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!user) return;
     const load = async () => {
-      // Get enrollments with course details
       const { data: enrollments } = await supabase
         .from("enrollments")
         .select("course_id, courses(id, title, description, category)")
@@ -27,72 +28,64 @@ export default function StudentDashboard() {
       const courseList = (enrollments || []).map((e: any) => e.courses).filter(Boolean);
       setEnrolledCourses(courseList);
 
-      // Get upcoming classes for enrolled courses
       if (courseList.length > 0) {
         const courseIds = courseList.map((c: any) => c.id);
-        const { data: classes } = await supabase
-          .from("scheduled_classes")
-          .select("*, courses(title)")
-          .in("course_id", courseIds)
-          .gte("scheduled_at", new Date().toISOString())
-          .eq("status", "scheduled")
-          .order("scheduled_at")
-          .limit(5);
-        setUpcomingClasses(classes || []);
 
-        // Get pending assignments
-        const { data: assignments } = await supabase
-          .from("assignments")
-          .select("*, courses(title)")
-          .in("course_id", courseIds);
+        // Parallel data fetching
+        const [classesRes, assignmentsRes, submissionsRes, announcementsRes, progressRes] = await Promise.all([
+          supabase.from("scheduled_classes").select("*, courses(title)").in("course_id", courseIds)
+            .gte("scheduled_at", new Date().toISOString()).eq("status", "scheduled").order("scheduled_at").limit(5),
+          supabase.from("assignments").select("*, courses(title)").in("course_id", courseIds),
+          supabase.from("submissions").select("assignment_id").eq("student_id", user.id),
+          supabase.from("announcements").select("*, courses(title)").order("created_at", { ascending: false }).limit(3),
+          supabase.from("content_progress").select("content_id, content(section_id, sections(course_id))").eq("student_id", user.id),
+        ]);
 
-        // Get submitted assignment IDs
-        const { data: submissions } = await supabase
-          .from("submissions")
-          .select("assignment_id")
-          .eq("student_id", user.id);
+        setUpcomingClasses(classesRes.data || []);
+        setAnnouncements(announcementsRes.data || []);
 
-        const submittedIds = new Set((submissions || []).map(s => s.assignment_id));
-        const pending = (assignments || []).filter(a => !submittedIds.has(a.id));
-        setPendingAssignments(pending);
+        const submittedIds = new Set((submissionsRes.data || []).map(s => s.assignment_id));
+        setPendingAssignments((assignmentsRes.data || []).filter(a => !submittedIds.has(a.id)));
+
+        // Calculate course progress
+        const progressByCourse: Record<string, number> = {};
+        (progressRes.data || []).forEach((p: any) => {
+          const cid = p.content?.sections?.course_id;
+          if (cid) progressByCourse[cid] = (progressByCourse[cid] || 0) + 1;
+        });
+
+        // Get total content per course
+        for (const cid of courseIds) {
+          const { data: sections } = await supabase.from("sections").select("id, content(id)").eq("course_id", cid);
+          const totalContent = (sections || []).reduce((sum: number, s: any) => sum + (s.content?.length || 0), 0);
+          const completed = progressByCourse[cid] || 0;
+          setCourseProgress(prev => ({ ...prev, [cid]: totalContent > 0 ? Math.round((completed / totalContent) * 100) : 0 }));
+        }
       }
 
-      // Get activity log for streak
+      // Streak
       const { data: activity } = await supabase
-        .from("activity_log")
-        .select("activity_date")
-        .eq("user_id", user.id)
+        .from("activity_log").select("activity_date").eq("user_id", user.id)
         .gte("activity_date", format(subDays(new Date(), 365), "yyyy-MM-dd"))
         .order("activity_date", { ascending: false });
 
       const dates = (activity || []).map(a => a.activity_date);
       setActivityDates(dates);
 
-      // Calculate streak
       let currentStreak = 0;
       let checkDate = new Date();
       for (let i = 0; i < 365; i++) {
         const dateStr = format(checkDate, "yyyy-MM-dd");
-        if (dates.includes(dateStr)) {
-          currentStreak++;
-          checkDate = subDays(checkDate, 1);
-        } else if (i === 0) {
-          checkDate = subDays(checkDate, 1);
-          continue;
-        } else {
-          break;
-        }
+        if (dates.includes(dateStr)) { currentStreak++; checkDate = subDays(checkDate, 1); }
+        else if (i === 0) { checkDate = subDays(checkDate, 1); continue; }
+        else break;
       }
       setStreak(currentStreak);
     };
     load();
   }, [user]);
 
-  // Generate last 90 days for heatmap
-  const last90Days = Array.from({ length: 91 }, (_, i) => {
-    const date = subDays(new Date(), 90 - i);
-    return format(date, "yyyy-MM-dd");
-  });
+  const last90Days = Array.from({ length: 91 }, (_, i) => format(subDays(new Date(), 90 - i), "yyyy-MM-dd"));
 
   return (
     <div className="space-y-6">
@@ -111,11 +104,7 @@ export default function StudentDashboard() {
           <CardContent>
             <div className="flex flex-wrap gap-1">
               {last90Days.map(date => (
-                <div
-                  key={date}
-                  title={date}
-                  className={`streak-cell ${activityDates.includes(date) ? "streak-active" : "streak-inactive"}`}
-                />
+                <div key={date} title={date} className={`streak-cell ${activityDates.includes(date) ? "streak-active" : "streak-inactive"}`} />
               ))}
             </div>
           </CardContent>
@@ -141,7 +130,30 @@ export default function StudentDashboard() {
         </Card>
       </div>
 
-      {/* Enrolled Courses */}
+      {/* Announcements */}
+      {announcements.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="font-display flex items-center gap-2"><Megaphone className="h-5 w-5 text-secondary" />Recent Announcements</CardTitle>
+              <Link to="/announcements" className="text-sm text-primary hover:underline">View all</Link>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {announcements.map(a => (
+              <div key={a.id} className="p-3 rounded-lg bg-muted/50 border border-border">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-medium text-sm text-foreground">{a.title}</p>
+                  {a.courses?.title && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{a.courses.title}</span>}
+                </div>
+                <p className="text-xs text-muted-foreground line-clamp-1">{a.content}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Enrolled Courses with progress */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -162,7 +174,10 @@ export default function StudentDashboard() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-foreground">{course.title}</p>
-                      <p className="text-sm text-muted-foreground truncate">{course.description || "No description"}</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <Progress value={courseProgress[course.id] || 0} className="h-2 flex-1" />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">{courseProgress[course.id] || 0}%</span>
+                      </div>
                     </div>
                   </div>
                 </Link>
@@ -175,9 +190,7 @@ export default function StudentDashboard() {
       {/* Upcoming Classes */}
       {upcomingClasses.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="font-display">Upcoming Classes</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="font-display">Upcoming Classes</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {upcomingClasses.map((cls: any) => (
               <div key={cls.id} className="flex items-center gap-4 p-3 rounded-lg border border-border">
@@ -200,9 +213,7 @@ export default function StudentDashboard() {
       {/* Pending Assignments */}
       {pendingAssignments.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="font-display">Pending Assignments</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="font-display">Pending Assignments</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {pendingAssignments.map((a: any) => (
               <Link key={a.id} to={`/assignments/${a.id}`} className="block">

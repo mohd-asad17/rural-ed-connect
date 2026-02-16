@@ -20,6 +20,9 @@ import Classes from "./pages/Classes";
 import Classroom from "./pages/Classroom";
 import Profile from "./pages/Profile";
 import Opportunities from "./pages/Opportunities";
+import Announcements from "./pages/Announcements";
+import Resources from "./pages/Resources";
+import Doubts from "./pages/Doubts";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +56,9 @@ const App = () => (
             <Route path="/classroom/:id" element={<ProtectedPage><Classroom /></ProtectedPage>} />
             <Route path="/profile" element={<ProtectedPage><Profile /></ProtectedPage>} />
             <Route path="/opportunities" element={<ProtectedPage><Opportunities /></ProtectedPage>} />
+            <Route path="/announcements" element={<ProtectedPage><Announcements /></ProtectedPage>} />
+            <Route path="/resources" element={<ProtectedPage><Resources /></ProtectedPage>} />
+            <Route path="/doubts" element={<ProtectedPage><Doubts /></ProtectedPage>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
