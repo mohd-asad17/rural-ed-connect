@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Plus, ChevronDown, ChevronRight, FileText, Video, File, Upload, Trash2, CheckCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { openStorageFile } from "@/lib/storage";
 
 export default function CourseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -126,9 +127,12 @@ export default function CourseDetail() {
     }
   };
 
-  const getContentUrl = (path: string) => {
-    const { data } = supabase.storage.from("course-content").getPublicUrl(path);
-    return data.publicUrl;
+  const openContent = async (path: string) => {
+    try {
+      await openStorageFile("course-content", path);
+    } catch (e: any) {
+      toast({ title: "Could not open file", description: e.message, variant: "destructive" });
+    }
   };
 
   const toggleSection = (sId: string) => {
@@ -186,9 +190,13 @@ export default function CourseDetail() {
                     {contentIcon(item.content_type)}
                     <span className="flex-1 text-sm">{item.title}</span>
                     {item.storage_path && (
-                      <a href={getContentUrl(item.storage_path)} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
+                      <button
+                        type="button"
+                        onClick={() => openContent(item.storage_path)}
+                        className="text-xs text-primary hover:underline"
+                      >
                         Open
-                      </a>
+                      </button>
                     )}
                     {role === "student" && isEnrolled && (
                       completedContent.has(item.id) ? (

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle, FileText, Download } from "lucide-react";
+import { openStorageFile } from "@/lib/storage";
 
 export default function AssignmentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -85,11 +86,10 @@ export default function AssignmentDetail() {
       setSubmitting(false);
       return;
     }
-    const { data: urlData } = supabase.storage.from("submissions").getPublicUrl(path);
     const { error } = await supabase.from("submissions").insert({
       student_id: user.id,
       assignment_id: id,
-      file_url: urlData.publicUrl,
+      file_url: path,
       status: "submitted",
     });
     setSubmitting(false);
@@ -98,7 +98,24 @@ export default function AssignmentDetail() {
     } else {
       await supabase.from("activity_log").insert({ user_id: user.id, activity_type: "assignment_submitted" });
       toast({ title: "Submitted successfully!" });
-      setSubmission({ file_url: urlData.publicUrl, status: "submitted" });
+      setSubmission({ file_url: path, status: "submitted" });
+    }
+  };
+
+  const openAssignmentFile = async () => {
+    if (!assignment?.file_url) return;
+    try {
+      await openStorageFile("assignment-files", assignment.file_url);
+    } catch (e: any) {
+      toast({ title: "Could not open file", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const openSubmissionFile = async (fileUrl: string) => {
+    try {
+      await openStorageFile("submissions", fileUrl);
+    } catch (e: any) {
+      toast({ title: "Could not open file", description: e.message, variant: "destructive" });
     }
   };
 
@@ -177,9 +194,13 @@ export default function AssignmentDetail() {
           <Card>
             <CardContent className="p-6 space-y-4">
               {assignment.file_url && (
-                <a href={assignment.file_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-primary hover:underline">
+                <button
+                  type="button"
+                  onClick={openAssignmentFile}
+                  className="flex items-center gap-2 text-primary hover:underline"
+                >
                   <Download className="h-4 w-4" /> Download assignment file
-                </a>
+                </button>
               )}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Upload your solution</label>
@@ -212,9 +233,13 @@ export default function AssignmentDetail() {
                     </span>
                   </div>
                   {sub.file_url && (
-                    <a href={sub.file_url} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => openSubmissionFile(sub.file_url)}
+                      className="text-sm text-primary hover:underline flex items-center gap-1"
+                    >
                       <FileText className="h-3 w-3" /> View submission
-                    </a>
+                    </button>
                   )}
                   {sub.marks !== null && <p className="text-sm">Marks: {sub.marks}/{assignment.max_marks}</p>}
                   {sub.feedback && <p className="text-sm text-muted-foreground">Feedback: {sub.feedback}</p>}
