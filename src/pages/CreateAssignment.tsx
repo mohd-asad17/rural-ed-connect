@@ -62,8 +62,9 @@ export default function CreateAssignment() {
         setIsLoading(false);
         return;
       }
-      const { data } = supabase.storage.from("assignment-files").getPublicUrl(path);
-      fileUrl = data.publicUrl;
+      // Store the storage path (not a public URL) — the bucket is private,
+      // so we generate a signed URL on demand when opening the file.
+      fileUrl = path;
     }
 
     const { data: assignment, error } = await supabase.from("assignments").insert({
